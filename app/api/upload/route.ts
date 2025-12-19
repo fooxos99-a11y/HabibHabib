@@ -1,23 +1,30 @@
-import { put } from "@vercel/blob"
-import { NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
+
+export const maxSize = 50 * 1024 * 1024; // 50MB
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData()
-    const file = formData.get("file") as File
-
+    const supabase = await createClient();
+    const formData = await request.formData();
+    const file = formData.get("file") as File | null;
     if (!file) {
-      return NextResponse.json({ error: "لم يتم تحديد ملف" }, { status: 400 })
+      return NextResponse.json({ error: "لم يتم اختيار ملف" }, { status: 400 });
     }
-
-    // Upload file to Vercel Blob
-    const blob = await put(file.name, file, {
-      access: "public",
-    })
-
-    return NextResponse.json({ url: blob.url })
+    if (file.size > maxSize) {
+      return NextResponse.json({ error: "الملف كبير جداً (الحد الأقصى 50MB)" }, { status: 400 });
+    }
+    const ext = file.name.split('.').pop();
+    const fileName = `content_${Date.now()}.${ext}`;
+    const { data, error } = await supabase.storage
+      .from("pathway-contents")
+      .upload(fileName, file, { upsert: true, contentType: file.type });
+    if (error) throw error;
+    const { data: publicUrlData } = supabase.storage
+      .from("pathway-contents")
+      .getPublicUrl(fileName);
+    return NextResponse.json({ url: publicUrlData.publicUrl });
   } catch (error) {
-    console.error("Error uploading file:", error)
-    return NextResponse.json({ error: "حدث خطأ أثناء رفع الملف" }, { status: 500 })
+    return NextResponse.json({ error: "فشل في رفع الملف" }, { status: 500 });
   }
 }

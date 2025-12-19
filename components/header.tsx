@@ -324,7 +324,7 @@ export function Header() {
             >
               الإنجازات
             </button>
-            {isLoggedIn && userRole === "student" && (
+            {(isLoggedIn && userRole === "student") && (
               <>
                 <button
                   onClick={() => handleNavClick("/pathways")}
@@ -510,7 +510,7 @@ export function Header() {
               >
                 الإنجازات
               </button>
-              {isLoggedIn && userRole === "student" && (
+              {(isLoggedIn && (userRole === "student" || userRole === "admin")) && (
                 <>
                   <button
                     onClick={() => {
@@ -523,28 +523,32 @@ export function Header() {
                   >
                     المسار
                   </button>
-                  <button
-                    onClick={() => {
-                      handleNavClick("/daily-challenge")
-                      setIsMobileMenuOpen(false)
-                    }}
-                    className={`text-right px-4 py-3 rounded-lg hover:bg-[#f5f1e8] transition-colors ${
-                      pathname === "/daily-challenge" ? "bg-[#f5f1e8] text-[#d8a355]" : ""
-                    }`}
-                  >
-                    التحدي اليومي
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleNavClick("/store")
-                      setIsMobileMenuOpen(false)
-                    }}
-                    className={`text-right px-4 py-3 rounded-lg hover:bg-[#f5f1e8] transition-colors ${
-                      pathname === "/store" ? "bg-[#f5f1e8] text-[#d8a355]" : ""
-                    }`}
-                  >
-                    المتجر
-                  </button>
+                  {userRole === "student" && (
+                    <>
+                      <button
+                        onClick={() => {
+                          handleNavClick("/daily-challenge")
+                          setIsMobileMenuOpen(false)
+                        }}
+                        className={`text-right px-4 py-3 rounded-lg hover:bg-[#f5f1e8] transition-colors ${
+                          pathname === "/daily-challenge" ? "bg-[#f5f1e8] text-[#d8a355]" : ""
+                        }`}
+                      >
+                        التحدي اليومي
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleNavClick("/store")
+                          setIsMobileMenuOpen(false)
+                        }}
+                        className={`text-right px-4 py-3 rounded-lg hover:bg-[#f5f1e8] transition-colors ${
+                          pathname === "/store" ? "bg-[#f5f1e8] text-[#d8a355]" : ""
+                        }`}
+                      >
+                        المتجر
+                      </button>
+                    </>
+                  )}
                 </>
               )}
               {isLoggedIn && (userRole === "teacher" || userRole === "admin") && (

@@ -16,6 +16,17 @@ interface Student {
 }
 
 export default function CircleAttendancePage() {
+    // تحديث بيانات الطلاب
+    const fetchStudents = async (circleName: string) => {
+      try {
+        const studentsResponse = await fetch(`/api/students?circle=${encodeURIComponent(circleName)}`)
+        const studentsData = await studentsResponse.json()
+        const allStudents = (studentsData.students || []).sort((a: any, b: any) => b.points - a.points)
+        setStudents(allStudents)
+      } catch (error) {
+        console.error("[v0] Error fetching students:", error)
+      }
+    }
   const router = useRouter()
   const params = useParams()
   const circleId = params.circleId as string
@@ -28,31 +39,13 @@ export default function CircleAttendancePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log("[v0] CircleId from URL:", circleId)
-
-        // Fetch circle details
+        setLoading(true)
         const circleResponse = await fetch("/api/circles")
         const circleData = await circleResponse.json()
-
-        console.log("[v0] All circles from API:", circleData.circles)
-
         const circle = circleData.circles?.find((c: any) => c.id === circleId)
-
-        console.log("[v0] Circle found:", circle)
-        console.log("[v0] Circle name to filter by:", circle?.name)
-
         if (circle) {
           setCircleName(circle.name)
-
-          // Fetch students for this circle
-          const studentsResponse = await fetch(`/api/students?circle=${encodeURIComponent(circle.name)}`)
-          const studentsData = await studentsResponse.json()
-
-          // Display all students sorted by points, not just top 10
-          const allStudents = (studentsData.students || []).sort((a: any, b: any) => b.points - a.points)
-          setStudents(allStudents)
-        } else {
-          console.log("[v0] Circle not found! CircleId:", circleId)
+          await fetchStudents(circle.name)
         }
       } catch (error) {
         console.error("[v0] Error fetching data:", error)
@@ -60,9 +53,14 @@ export default function CircleAttendancePage() {
         setLoading(false)
       }
     }
-
     fetchData()
-  }, [circleId])
+    // إعادة تحميل البيانات عند العودة للصفحة (focus)
+    const handleFocus = () => {
+      if (circleName) fetchStudents(circleName)
+    }
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
+  }, [circleId, circleName])
 
   const handleDateSubmit = () => {
     if (selectedDate) {
@@ -75,6 +73,11 @@ export default function CircleAttendancePage() {
       <Header />
       <main className="flex-1 py-12">
         <div className="container mx-auto px-4">
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => fetchStudents(circleName)} variant="outline" className="border-2 border-[#d8a355]">
+              تحديث السجلات
+            </Button>
+          </div>
           <Button
             onClick={() => router.push("/admin/student-records")}
             variant="outline"

@@ -122,9 +122,7 @@ export default function AdminDashboard() {
   const [isAchievementDragging, setIsAchievementDragging] = useState(false)
 
   const [newAchievement, setNewAchievement] = useState({
-    student_name: "",
     title: "",
-    category: "",
     date: "",
     description: "",
     status: "مكتمل",
@@ -153,7 +151,7 @@ export default function AdminDashboard() {
     const statusMap: Record<string, string> = {
       present: "حاضر",
       absent: "غائب",
-      excused: "غائب بعذر",
+      excused: "مستأذن",
     }
     return statusMap[status] || status
   }
@@ -442,8 +440,8 @@ export default function AdminDashboard() {
   }
 
   const handleAddAchievement = async () => {
-    if (!newAchievement.student_name || !newAchievement.title || !newAchievement.category) {
-      await alertDialog("الرجاء ملء جميع الحقول المطلوبة")
+    if (!newAchievement.title) {
+      await alertDialog("الرجاء إدخال عنوان الإنجاز")
       return
     }
 
@@ -484,9 +482,66 @@ export default function AdminDashboard() {
       if (response.ok) {
         await alertDialog("تم إضافة الإنجاز بنجاح")
         setNewAchievement({
-          student_name: "",
           title: "",
-          category: "",
+          date: "",
+          description: "",
+          status: "مكتمل",
+          level: "ممتاز",
+          icon_type: "trophy",
+          image: null,
+          image_url: "",
+        })
+        fetchAchievements()
+      } else {
+        await alertDialog(data.error || "فشل في إضافة الإنجاز")
+      }
+    } catch (error) {
+      console.error("[v0] Error adding achievement:", error)
+      await alertDialog("حدث خطأ أثناء إضافة الإنجاز")
+    } finally {
+      setIsSubmitting(false)
+      setUploadingAchievementImage(false)
+    }
+  }
+
+  // إزالة زر الطلابي والإبقاء فقط على زر إضافة إنجاز عام
+  const handleAddAchievementPublic = async () => {
+    if (!newAchievement.title) {
+      await alertDialog("الرجاء إدخال عنوان الإنجاز")
+      return
+    }
+    setIsSubmitting(true)
+    try {
+      let imageUrl = ""
+      if (newAchievement.image) {
+        setUploadingAchievementImage(true)
+        const formData = new FormData()
+        formData.append("file", newAchievement.image)
+        const uploadResponse = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        })
+        if (!uploadResponse.ok) {
+          throw new Error("فشل رفع الصورة")
+        }
+        const uploadData = await uploadResponse.json()
+        imageUrl = uploadData.url
+        setUploadingAchievementImage(false)
+      }
+      const response = await fetch("/api/achievements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...newAchievement,
+          image_url: imageUrl,
+          achievement_type: "public",
+        }),
+      })
+      const data = await response.json()
+      if (response.ok) {
+        await alertDialog("تم إضافة الإنجاز بنجاح")
+        setNewAchievement({
+          title: "",
           date: "",
           description: "",
           status: "مكتمل",
@@ -1058,6 +1113,11 @@ export default function AdminDashboard() {
             </Dialog>
 
             {/* WhatsApp Send Button */}
+
+
+            {/* تم حذف زر إدارة إنجازات الطلاب الشخصية */}
+
+            {/* زر الإرسال إلى أولياء الأمور */}
             <Button
               onClick={(e) => {
                 e.preventDefault()
@@ -1069,179 +1129,7 @@ export default function AdminDashboard() {
               الإرسال إلى أولياء الأمور
             </Button>
 
-            {/* Position 4: Programs Management */}
-            <Dialog open={isAchievementsDialogOpen} onOpenChange={setIsAchievementsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  onClick={(e) => {
-                    e.preventDefault()
-                    setIsAchievementsDialogOpen(true)
-                    fetchAchievements()
-                  }}
-                  className="bg-gradient-to-r from-[#D4AF37] to-[#C9A961] hover:from-[#C9A961] hover:to-[#BFA050] text-[#023232] font-bold"
-                >
-                  <Award className="w-5 h-5 ml-2" />
-                  إدارة الإنجازات
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl text-[#1a2332]">إدارة الإنجازات</DialogTitle>
-                  <DialogDescription className="text-base">إضافة وحذف إنجازات الطلاب</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-6 py-4">
-                  {/* Add Achievement Form */}
-                  <div className="border-2 border-[#D4AF37]/30 rounded-lg p-4 space-y-4">
-                    <h3 className="text-lg font-bold text-[#1a2332]">إضافة إنجاز جديد</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>اسم الطالب</Label>
-                        <Input
-                          value={newAchievement.student_name}
-                          onChange={(e) => setNewAchievement({ ...newAchievement, student_name: e.target.value })}
-                          placeholder="أدخل اسم الطالب"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>عنوان الإنجاز</Label>
-                        <Input
-                          value={newAchievement.title}
-                          onChange={(e) => setNewAchievement({ ...newAchievement, title: e.target.value })}
-                          placeholder="أدخل عنوان الإنجاز"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>الفئة</Label>
-                        <Input
-                          value={newAchievement.category}
-                          onChange={(e) => setNewAchievement({ ...newAchievement, category: e.target.value })}
-                          placeholder="مثال: حفظ القرآن"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>التاريخ</Label>
-                        <Input
-                          value={newAchievement.date}
-                          onChange={(e) => setNewAchievement({ ...newAchievement, date: e.target.value })}
-                          placeholder="مثال: 15 محرم 1446هـ"
-                        />
-                      </div>
-                      <div className="space-y-2 col-span-2">
-                        <Label>الوصف</Label>
-                        <Input
-                          value={newAchievement.description}
-                          onChange={(e) => setNewAchievement({ ...newAchievement, description: e.target.value })}
-                          placeholder="أدخل وصف الإنجاز"
-                        />
-                      </div>
-                      <div className="space-y-2 col-span-2">
-                        <Label htmlFor="achievement-image" className="flex items-center gap-2">
-                          <Upload className="w-4 h-4" />
-                          صورة الإنجاز
-                        </Label>
-                        <div
-                          onDragOver={handleAchievementDragOver}
-                          onDragLeave={handleAchievementDragLeave}
-                          onDrop={handleAchievementDrop}
-                          className={`relative border-2 border-dashed rounded-lg p-6 transition-all duration-200 cursor-pointer ${
-                            isAchievementDragging
-                              ? "border-[#D4AF37] bg-[#D4AF37]/10"
-                              : "border-gray-300 hover:border-[#D4AF37] hover:bg-gray-50"
-                          }`}
-                        >
-                          <input
-                            id="achievement-image"
-                            type="file"
-                            onChange={handleAchievementImageChange}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            accept="image/*"
-                          />
-                          <div className="flex flex-col items-center justify-center gap-2 text-center">
-                            <Upload
-                              className={`w-8 h-8 ${isAchievementDragging ? "text-[#D4AF37]" : "text-gray-400"}`}
-                            />
-                            <p className="text-sm font-medium text-gray-700">
-                              {isAchievementDragging ? "أفلت الصورة هنا" : "اسحب الصورة هنا أو اضغط للاختيار"}
-                            </p>
-                            <p className="text-xs text-gray-500">PNG, JPG, JPEG</p>
-                          </div>
-                        </div>
-                        {newAchievement.image && (
-                          <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                            <FileText className="w-4 h-4 text-green-600" />
-                            <span className="text-sm text-green-700 font-medium">{newAchievement.image.name}</span>
-                            <button
-                              type="button"
-                              onClick={() => setNewAchievement({ ...newAchievement, image: null })}
-                              className="mr-auto text-red-500 hover:text-red-700"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      onClick={handleAddAchievement}
-                      disabled={isSubmitting || uploadingAchievementImage}
-                      className="bg-gradient-to-r from-[#D4AF37] to-[#C9A961] hover:from-[#C9A961] hover:to-[#BFA050] text-[#023232] font-bold"
-                    >
-                      {uploadingAchievementImage
-                        ? "جاري رفع الصورة..."
-                        : isSubmitting
-                          ? "جاري الإضافة..."
-                          : "إضافة الإنجاز"}
-                    </Button>
-                  </div>
 
-                  {/* Achievements List */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-bold text-[#1a2332]">الإنجازات الحالية</h3>
-                    {isLoadingAchievements ? (
-                      <div className="text-center py-8">جاري التحميل...</div>
-                    ) : achievements.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500">لا توجد إنجازات</div>
-                    ) : (
-                      <div className="space-y-3">
-                        {achievements.map((achievement) => (
-                          <div
-                            key={achievement.id}
-                            className="border border-gray-200 rounded-lg p-4 flex justify-between items-start"
-                          >
-                            <div className="flex-1">
-                              <h4 className="font-bold text-[#1a2332]">{achievement.title}</h4>
-                              <p className="text-sm text-gray-600">{achievement.student_name}</p>
-                              <p className="text-sm text-gray-500">
-                                {achievement.category} - {achievement.date}
-                              </p>
-                              {achievement.image_url && (
-                                <img
-                                  src={achievement.image_url || "/placeholder.svg"}
-                                  alt={achievement.title}
-                                  className="mt-2 w-20 h-20 object-cover rounded-lg"
-                                />
-                              )}
-                            </div>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteAchievement(achievement.id)}
-                            >
-                              حذف
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <Button variant="outline" onClick={() => setIsAchievementsDialogOpen(false)}>
-                    إغلاق
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
 
             <Button
               onClick={(e) => {
@@ -1798,30 +1686,37 @@ export default function AdminDashboard() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {studentRecords.map((record) => (
-                            <TableRow key={record.id}>
-                              <TableCell className="font-medium">
-                                {new Date(record.date).toLocaleDateString("ar-SA")}
-                              </TableCell>
-                              <TableCell>
-                                <span
-                                  className={`px-2 py-1 rounded-full text-sm ${
-                                    record.status === "present"
-                                      ? "bg-green-100 text-green-800"
-                                      : record.status === "absent"
-                                        ? "bg-red-100 text-red-800"
-                                        : "bg-yellow-100 text-yellow-800"
-                                  }`}
-                                >
-                                  {translateStatus(record.status)}
-                                </span>
-                              </TableCell>
-                              <TableCell>{translateLevel(record.evaluations?.[0]?.hafiz_level) || "-"}</TableCell>
-                              <TableCell>{translateLevel(record.evaluations?.[0]?.tikrar_level) || "-"}</TableCell>
-                              <TableCell>{translateLevel(record.evaluations?.[0]?.samaa_level) || "-"}</TableCell>
-                              <TableCell>{translateLevel(record.evaluations?.[0]?.rabet_level) || "-"}</TableCell>
-                            </TableRow>
-                          ))}
+                          {studentRecords.map((record) => {
+                            // عرض آخر تقييم وليس الأول
+                            const lastEval = Array.isArray(record.evaluations) && record.evaluations.length > 0
+                              ? record.evaluations[record.evaluations.length - 1]
+                              : null;
+                            console.log('[DEBUG][Dashboard] آخر تقييم:', lastEval);
+                            return (
+                              <TableRow key={record.id}>
+                                <TableCell className="font-medium">
+                                  {new Date(record.date).toLocaleDateString("ar-SA")}
+                                </TableCell>
+                                <TableCell>
+                                  <span
+                                    className={`px-2 py-1 rounded-full text-sm ${
+                                      record.status === "present"
+                                        ? "bg-green-100 text-green-800"
+                                        : record.status === "absent"
+                                          ? "bg-red-100 text-red-800"
+                                          : "bg-yellow-100 text-yellow-800"
+                                    }`}
+                                  >
+                                    {translateStatus(record.status)}
+                                  </span>
+                                </TableCell>
+                                <TableCell>{(record.status === "absent" || record.status === "excused") ? "لم يكمل" : (translateLevel(lastEval?.hafiz_level) || "-")}</TableCell>
+                                <TableCell>{(record.status === "absent" || record.status === "excused") ? "لم يكمل" : (translateLevel(lastEval?.tikrar_level) || "-")}</TableCell>
+                                <TableCell>{(record.status === "absent" || record.status === "excused") ? "لم يكمل" : (translateLevel(lastEval?.samaa_level) || "-")}</TableCell>
+                                <TableCell>{(record.status === "absent" || record.status === "excused") ? "لم يكمل" : (translateLevel(lastEval?.rabet_level) || "-")}</TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     )}

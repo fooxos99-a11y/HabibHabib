@@ -135,17 +135,42 @@ export default function HalaqahManagement() {
 
   const toggleAttendance = (id: number, status: "present" | "absent" | "excused") => {
     setStudents(
-      students.map((s) =>
-        s.id === id
-          ? {
-              ...s,
-              attendance: status,
-              evaluation: status === "absent" || status === "excused" ? {} : s.evaluation,
-            }
-          : s,
-      ),
-    )
+      students.map((s) => {
+        if (s.id !== id) return s;
+        if (status === "absent" || status === "excused") {
+          return { ...s, attendance: status, evaluation: {} };
+        }
+        // إذا كانت التقييمات فارغة عند التحويل إلى حاضر، هيئها بقيم not_completed
+        const defaultEval = {
+          hafiz: "not_completed",
+          tikrar: "not_completed",
+          samaa: "not_completed",
+          rabet: "not_completed",
+        };
+        return {
+          ...s,
+          attendance: status,
+          evaluation: Object.keys(s.evaluation || {}).length > 0 ? s.evaluation : defaultEval,
+        };
+      }),
+    );
   }
+
+// التعديل: لا تصفر التقييمات عند اختيار حاضر، فقط عند اختيار غائب أو مستأذن
+// الكود المعدل:
+//  const toggleAttendance = (id: number, status: "present" | "absent" | "excused") => {
+//    setStudents(
+//      students.map((s) =>
+//        s.id === id
+//          ? {
+//              ...s,
+//              attendance: status,
+//              evaluation: (status === "absent" || status === "excused") ? {} : (s.evaluation || {}),
+//            }
+//          : s,
+//      ),
+//    )
+//  }
 
   const setEvaluation = (studentId: number, type: "hafiz" | "tikrar" | "samaa" | "rabet", level: EvaluationLevel) => {
     setStudents(
@@ -192,56 +217,30 @@ export default function HalaqahManagement() {
       return
     }
 
-    console.log("[v0] Saving attendance and evaluation data:", students)
-
     setIsSaving(true)
     setSaveStatus("saving")
-
     try {
       const studentsToSave = students.filter((s) => s.attendance !== null)
-
-      for (const student of studentsToSave) {
-        if (student.attendance === "present" && student.evaluation) {
-          await fetch("/api/attendance", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              student_id: student.id,
-              teacher_id: teacherData.id,
-              halaqah: teacherData.halaqah,
-              status: student.attendance,
-              hafiz_level: student.evaluation.hafiz || "not_completed",
-              tikrar_level: student.evaluation.tikrar || "not_completed",
-              samaa_level: student.evaluation.samaa || "not_completed",
-              rabet_level: student.evaluation.rabet || "not_completed",
-            }),
-          })
-        } else if (student.attendance === "absent" || student.attendance === "excused") {
-          await fetch("/api/attendance", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              student_id: student.id,
-              teacher_id: teacherData.id,
-              halaqah: teacherData.halaqah,
-              status: student.attendance,
-              hafiz_level: "not_completed",
-              tikrar_level: "not_completed",
-              samaa_level: "not_completed",
-              rabet_level: "not_completed",
-            }),
-          })
-        }
-      }
-
+      await fetch("/api/attendance/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          students: studentsToSave,
+          teacher_id: teacherData.id,
+          halaqah: teacherData.halaqah,
+        }),
+      })
       setSaveStatus("success")
       await showAlert("تم حفظ البيانات بنجاح!", "نجاح")
-
+      // إعادة جلب الطلاب بعد الحفظ تلقائيًا
+      if (teacherData?.halaqah) {
+        await fetchStudents(teacherData.halaqah)
+      }
       setTimeout(() => {
         handleReset()
         setSaveStatus("idle")
         setIsSaving(false)
-      }, 500)
+      }, 100)
     } catch (error) {
       console.error("[v0] Error saving data:", error)
       setSaveStatus("idle")

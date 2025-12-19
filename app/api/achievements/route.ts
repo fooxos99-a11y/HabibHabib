@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/client"
+import { createClient as createServerSupabaseClient } from "@/lib/supabase/server"
 
 export async function GET() {
   try {
-    const supabase = createClient()
+    const supabase = await createServerSupabaseClient()
     const { data, error } = await supabase.from("achievements").select("*").order("created_at", { ascending: false })
 
     if (error) {
@@ -21,35 +21,41 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { student_name, title, category, date, description, status, level, icon_type, image_url } = body
+    console.log("[DEBUG] POST /api/achievements body:", body)
+    const { student_name, title, category, date, description, status, level, icon_type, image_url, achievement_type } = body
 
-    const supabase = createClient()
+    const supabase = await createServerSupabaseClient()
+    const achievementData: any = {
+      title,
+      date,
+      description,
+      status: status || "مكتمل",
+      level: level || "ممتاز",
+      icon_type: icon_type || "trophy",
+      image_url: image_url || null,
+      achievement_type: achievement_type || "student",
+    }
+    if (student_name) achievementData.student_name = student_name
+    if (category) achievementData.category = category
+
     const { data, error } = await supabase
       .from("achievements")
-      .insert([
-        {
-          student_name,
-          title,
-          category,
-          date,
-          description,
-          status: status || "مكتمل",
-          level: level || "ممتاز",
-          icon_type: icon_type || "trophy",
-          image_url: image_url || null,
-        },
-      ])
+      .insert([achievementData])
       .select()
 
     if (error) {
       console.error("[v0] Error creating achievement:", error)
-      return NextResponse.json({ error: "Failed to create achievement" }, { status: 500 })
+      console.error("[DEBUG] achievementData:", achievementData)
+      if (error.details) console.error("[DEBUG] error.details:", error.details)
+      if (error.hint) console.error("[DEBUG] error.hint:", error.hint)
+      if (error.code) console.error("[DEBUG] error.code:", error.code)
+      return NextResponse.json({ error: error.message || "Failed to create achievement", details: error }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, achievement: data[0] })
   } catch (error) {
     console.error("[v0] Error in POST /api/achievements:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: error.message || "Internal server error", details: error }, { status: 500 })
   }
 }
 
@@ -62,7 +68,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Achievement ID is required" }, { status: 400 })
     }
 
-    const supabase = createClient()
+    const supabase = await createServerSupabaseClient()
     const { error } = await supabase.from("achievements").delete().eq("id", id)
 
     if (error) {

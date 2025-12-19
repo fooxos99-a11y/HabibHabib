@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { User, Trophy, Award, Calendar, Star, BarChart3 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { EffectSelector } from "@/components/effect-selector"
@@ -45,11 +46,26 @@ interface RankingData {
 }
 
 export default function ProfilePage() {
+  const [studentData, setStudentData] = useState<StudentData | null>(null)
+  // تحديث السجلات يدويًا
+  const handleRefreshRecords = () => {
+    if (studentData?.id) {
+      fetchAttendanceRecords(studentData.id)
+    }
+  }
+
+  // تحديث تلقائي عند العودة للصفحة
+  useEffect(() => {
+    const handleFocus = () => {
+      if (studentData?.id) fetchAttendanceRecords(studentData.id)
+    }
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
+  }, [studentData?.id])
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "profile")
-  const [studentData, setStudentData] = useState<StudentData | null>(null)
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [isLoadingRecords, setIsLoadingRecords] = useState(false)
   const [rankingData, setRankingData] = useState<RankingData | null>(null)
@@ -184,36 +200,26 @@ export default function ProfilePage() {
       <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#f5f1e8] to-white">
         <Header />
         <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-2xl text-[#1a2332] mb-4">لم يتم العثور على بيانات الطالب</p>
-            <button
-              onClick={() => router.push("/login")}
-              className="px-6 py-3 bg-[#d8a355] text-white rounded-lg hover:bg-[#c99347]"
-            >
-              العودة لتسجيل الدخول
-            </button>
-          </div>
+          <div className="text-2xl text-[#1a2332]">لم يتم العثور على بيانات الطالب.</div>
         </main>
         <Footer />
       </div>
     )
   }
 
-  const getEvaluationText = (level: string | null) => {
-    if (!level) return "غير مقيّم"
+  function getEvaluationText(level: string | null) {
     switch (level) {
-      case "excellent":
-        return "ممتاز"
-      case "very_good":
-        return "جيد جداً"
-      case "good":
-        return "جيد"
-      case "acceptable":
-        return "مقبول"
-      case "weak":
-        return "ضعيف"
+      case null:
       case "not_completed":
         return "لم يكمل"
+      case "excellent":
+        return "ممتاز"
+      case "good":
+        return "جيد"
+      case "average":
+        return "متوسط"
+      case "weak":
+        return "ضعيف"
       default:
         return level
     }
@@ -462,6 +468,7 @@ export default function ProfilePage() {
               </TabsContent>
 
               <TabsContent value="records" className="space-y-4">
+                {/* تم حذف زر تحديث السجلات بناءً على طلب المستخدم */}
                 <Card className="border-2 shadow-lg" style={{ borderColor: `var(--theme-primary)33` }}>
                   <CardHeader className="bg-white">
                     <CardTitle className="text-2xl text-[#1a2332]">سجلات الحضور والتقييم</CardTitle>
@@ -504,26 +511,38 @@ export default function ProfilePage() {
                                     : "bg-red-100 text-red-800 text-base"
                                 }
                               >
-                                {record.status === "present" ? "حاضر" : "غائب"}
+                                {record.status === "present"
+                                  ? "حاضر"
+                                  : record.status === "excused"
+                                  ? "مستأذن"
+                                  : "غائب"}
                               </Badge>
                             </div>
-                            <div>
-                              <p className="text-sm font-semibold text-[#1a2332]/70">الحفظ</p>
-                              <p className="text-base font-bold" style={{ color: "var(--theme-primary)" }}>
-                                {getEvaluationText(record.hafiz_level)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-[#1a2332]/70">التكرار</p>
-                              <p className="text-base font-bold" style={{ color: "var(--theme-secondary)" }}>
-                                {getEvaluationText(record.tikrar_level)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-[#1a2332]/70">السماع</p>
-                              <p className="text-base font-bold" style={{ color: "var(--theme-primary)" }}>
-                                {getEvaluationText(record.samaa_level)}
-                              </p>
+                            <div className="flex flex-row justify-between items-center w-full text-center gap-6">
+                              <div className="flex-1 mx-6">
+                                <p className="text-sm font-semibold text-[#1a2332]/70 mb-1">الحفظ</p>
+                                <p className="text-base font-bold" style={{ color: "var(--theme-primary)" }}>
+                                  {getEvaluationText(record.hafiz_level)}
+                                </p>
+                              </div>
+                              <div className="flex-1 mx-6">
+                                <p className="text-sm font-semibold text-[#1a2332]/70 mb-1">التكرار</p>
+                                <p className="text-base font-bold" style={{ color: "var(--theme-secondary)" }}>
+                                  {getEvaluationText(record.tikrar_level)}
+                                </p>
+                              </div>
+                              <div className="flex-1 mx-6">
+                                <p className="text-sm font-semibold text-[#1a2332]/70 mb-1">السماع</p>
+                                <p className="text-base font-bold" style={{ color: "var(--theme-primary)" }}>
+                                  {getEvaluationText(record.samaa_level)}
+                                </p>
+                              </div>
+                              <div className="flex-1 mx-6">
+                                <p className="text-sm font-semibold text-[#1a2332]/70 mb-1">الربط</p>
+                                <p className="text-base font-bold" style={{ color: "var(--theme-secondary)" }}>
+                                  {getEvaluationText(record.rabet_level)}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>

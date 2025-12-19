@@ -42,20 +42,26 @@ export async function GET(request: NextRequest) {
     // Fetch evaluations for each attendance record
     const recordsWithEvaluations = await Promise.all(
       (attendanceData || []).map(async (record) => {
-        const { data: evaluation } = await supabase
+        const { data: evaluations } = await supabase
           .from("evaluations")
           .select("*")
           .eq("attendance_record_id", record.id)
-          .maybeSingle()
+          .order("created_at", { ascending: true });
 
+        // اختر آخر تقييم (الأحدث)
+        const lastEval = Array.isArray(evaluations) && evaluations.length > 0
+          ? evaluations[evaluations.length - 1]
+          : null;
+
+        const isAbsent = record.status === "absent" || record.status === "excused";
         return {
           id: record.id,
           date: record.date,
           status: record.status,
-          hafiz_level: evaluation?.hafiz_level || null,
-          tikrar_level: evaluation?.tikrar_level || null,
-          samaa_level: evaluation?.samaa_level || null,
-          rabet_level: evaluation?.rabet_level || null,
+          hafiz_level: isAbsent ? "not_completed" : (lastEval?.hafiz_level || null),
+          tikrar_level: isAbsent ? "not_completed" : (lastEval?.tikrar_level || null),
+          samaa_level: isAbsent ? "not_completed" : (lastEval?.samaa_level || null),
+          rabet_level: isAbsent ? "not_completed" : (lastEval?.rabet_level || null),
         }
       }),
     )
@@ -70,7 +76,18 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { student_id, teacher_id, halaqah, status, hafiz_level, tikrar_level, samaa_level, rabet_level } = body
+    const { student_id, teacher_id, halaqah, status, hafiz_level, tikrar_level, samaa_level, rabet_level, debug_today } = body
+
+    // طباعة القيم المستلمة للتشخيص
+    console.log("[DEBUG][API] Received attendance POST:")
+    console.log("  student_id:", student_id)
+    console.log("  teacher_id:", teacher_id)
+    console.log("  halaqah:", halaqah)
+    console.log("  status:", status)
+    console.log("  hafiz_level:", hafiz_level)
+    console.log("  tikrar_level:", tikrar_level)
+    console.log("  samaa_level:", samaa_level)
+    console.log("  rabet_level:", rabet_level)
 
     if (!student_id || !teacher_id || !halaqah) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -78,9 +95,15 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // Get today's date in YYYY-MM-DD format (local timezone)
+    // Get today's date in YYYY-MM-DD format (Asia/Riyadh timezone)
     const today = new Date()
-    const todayDate = today.toISOString().split("T")[0]
+    // تحويل التوقيت إلى توقيت السعودية
+    const saDate = new Date(today.toLocaleString("en-US", { timeZone: "Asia/Riyadh" }))
+    const todayDate = saDate.toISOString().split("T")[0]
+    console.log("[DEBUG] تاريخ اليوم في السيرفر (Asia/Riyadh):", todayDate)
+    if (debug_today) {
+      console.log("[DEBUG] debug_today من المتصفح:", debug_today)
+    }
 
     console.log("[v0] Adding evaluation for student:", student_id, "on date:", todayDate)
 
@@ -168,6 +191,17 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // إذا كان غائب أو مستأذن، احذف أي تقييمات قديمة ولا تدخل تقييمات جديدة
+      if (status === "absent" || status === "excused") {
+        await supabase.from("evaluations").delete().eq("attendance_record_id", attendanceRecord.id);
+        return NextResponse.json({
+          success: true,
+          attendance: attendanceRecord,
+          evaluation: null,
+          pointsAdded: 0,
+          isUpdate,
+        });
+      }
       // Add new points to student if new evaluation data is provided
       if (hafiz_level && tikrar_level && samaa_level && rabet_level) {
         const hafizPoints = calculatePoints(hafiz_level)
